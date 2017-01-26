@@ -1,8 +1,10 @@
 'use strict';
 
+const assert = require('assert');
 const util = require('util');
 
 const stringifyEntity = require('bem-naming').stringify;
+const parseEntity = require('bem-naming').parse;
 
 /**
  * Enum for types of BEM entities.
@@ -23,30 +25,17 @@ module.exports = class BemEntityName {
      * @param {string} obj.block  — the block name of entity.
      * @param {string} [obj.elem] — the element name of entity.
      * @param {object} [obj.mod]  — the modifier of entity.
-     * @param {string} [obj.mod.name] — the modifier name of entity.
+     * @param {string} obj.mod.name — the modifier name of entity.
      * @param {string} [obj.mod.val]  — the modifier value of entity.
      */
     constructor(obj) {
-        if (!obj.block) {
-             throw new Error('This is not valid BEM entity: the field `block` is undefined.');
-        }
+        assert(obj.block, 'This is not valid BEM entity: the field `block` is undefined.');
+        assert(!obj.mod || obj.mod.name, 'This is not valid BEM entity: the field `mod.name` is undefined.');
 
         const data = this._data = { block: obj.block };
 
         obj.elem && (data.elem = obj.elem);
-
-        const modObj = obj.mod;
-        const modName = (typeof modObj === 'string' ? modObj : modObj && modObj.name) || obj.modName;
-        const hasModVal = modObj && modObj.hasOwnProperty('val') || obj.hasOwnProperty('modVal');
-
-        if (modName) {
-            data.mod = {
-                name: modName,
-                val: hasModVal ? modObj && modObj.val || obj.modVal : true
-            };
-        } else if (modObj || hasModVal) {
-            throw new Error('This is not valid BEM entity: the field `mod.name` is undefined.');
-        }
+        obj.mod && (data.mod = { name: obj.mod.name, val: obj.mod.val || true });
 
         this.__isBemEntityName__ = true;
     }
@@ -284,5 +273,51 @@ module.exports = class BemEntityName {
      */
     static isBemEntityName(entityName) {
         return entityName && entityName.__isBemEntityName__;
+    }
+
+    /**
+     * Creates BemEntityName instance by the any object representation.
+     *
+     * @param {object} obj — representation of entity name.
+     * @param {string} obj.block  — the block name of entity.
+     * @param {string} [obj.elem] — the element name of entity.
+     * @param {object|string} [obj.mod]  — the modifier of entity.
+     * @param {string} [obj.mod.name] — the modifier name of entity.
+     * @param {string} [obj.mod.val]  — the modifier value of entity.
+     * @param {string} [obj.modName] — the modifier name of entity.
+     * @param {string} [obj.modVal]  — the modifier value of entity.
+     *
+     * @returns {BemEntityName} An object representing entity name.
+     * @example
+     * const BemEntityName = require('@bem/entity-name');
+     *
+     * BemEntityName.create('my-button_theme_red');
+     * BemEntityName.create({ block: 'my-button', mod: 'theme', val: 'red' });
+     * BemEntityName.create({ block: 'my-button', modName: 'theme', modVal: 'red' });
+     * // BemEntityName { block: 'my-button', mod: { name: 'theme', val: 'red' } }
+     */
+    static create(obj) {
+        if (BemEntityName.isBemEntityName(obj)) {
+            return obj;
+        }
+
+        const data = { block: obj.block };
+        const mod = obj.mod;
+
+        obj.elem && (data.elem = obj.elem);
+
+        if (mod || obj.modName) {
+            const isString = typeof mod === 'string';
+            const modName = (isString ? mod : mod && mod.name) || obj.modName;
+            const modObj = !isString && mod || obj;
+            const hasModVal = modObj.hasOwnProperty('val') || obj.hasOwnProperty('modVal');
+
+            data.mod = {
+                name: modName,
+                val: hasModVal ? modObj.val || obj.modVal : true
+            };
+        }
+
+        return new BemEntityName(data);
     }
 };
